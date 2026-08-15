@@ -26,10 +26,11 @@ const optionalPort = z.preprocess(
   z.coerce.number().int().min(1).max(65535).optional(),
 );
 const optionalBoolean = z.preprocess((value) => {
-  if (typeof value !== "string") {
-    return value;
+  const normalizedValue = emptyToUndefined(value);
+  if (typeof normalizedValue !== "string") {
+    return normalizedValue;
   }
-  const normalized = value.trim().toLowerCase();
+  const normalized = normalizedValue.trim().toLowerCase();
   if (normalized === "true" || normalized === "1") {
     return true;
   }
