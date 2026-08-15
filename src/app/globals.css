@@ -1,0 +1,170 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-priority-now: var(--priority-now);
+  --color-priority-today: var(--priority-today);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --font-sans: "Yu Gothic UI", "Yu Gothic", "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+  --font-mono: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+}
+
+:root {
+  --background: #f7f6f1;
+  --foreground: #222a26;
+  --card: #fcfbf8;
+  --card-foreground: #222a26;
+  --popover: #fffefa;
+  --popover-foreground: #222a26;
+  --primary: #286f5a;
+  --primary-foreground: #ffffff;
+  --secondary: #e7ece7;
+  --secondary-foreground: #25483c;
+  --muted: #efeee8;
+  --muted-foreground: #6e756f;
+  --accent: #dfe8e2;
+  --accent-foreground: #214d3e;
+  --destructive: #b4534b;
+  --border: #dedbd2;
+  --input: #d8d6cf;
+  --ring: #4a8674;
+  --success: #367662;
+  --warning: #b58536;
+  --priority-now: #ba514d;
+  --priority-today: #bc8731;
+  --radius: 0.78rem;
+  --sidebar: #f2f1ec;
+  --sidebar-foreground: #222a26;
+  --sidebar-primary: #286f5a;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #dfe8e2;
+  --sidebar-accent-foreground: #214d3e;
+  --sidebar-border: #dedbd2;
+  --sidebar-ring: #4a8674;
+}
+
+.dark {
+  --background: #171c19;
+  --foreground: #edf0ed;
+  --card: #1e2521;
+  --card-foreground: #edf0ed;
+  --popover: #202823;
+  --popover-foreground: #edf0ed;
+  --primary: #7eb59e;
+  --primary-foreground: #102019;
+  --secondary: #29332d;
+  --secondary-foreground: #e4e9e5;
+  --muted: #29302c;
+  --muted-foreground: #aeb8b1;
+  --accent: #304239;
+  --accent-foreground: #dce8e1;
+  --destructive: #de7b72;
+  --border: #38413c;
+  --input: #414b45;
+  --ring: #7eb59e;
+  --success: #7eb59e;
+  --warning: #d9ad62;
+  --priority-now: #df7b75;
+  --priority-today: #ddb469;
+  --sidebar: #1b211d;
+  --sidebar-foreground: #edf0ed;
+  --sidebar-primary: #7eb59e;
+  --sidebar-primary-foreground: #102019;
+  --sidebar-accent: #304239;
+  --sidebar-accent-foreground: #dce8e1;
+  --sidebar-border: #38413c;
+  --sidebar-ring: #7eb59e;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    @apply bg-background font-sans;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply min-h-dvh bg-background text-foreground antialiased;
+    background-image: radial-gradient(circle at 50% -20%, color-mix(in srgb, var(--accent) 40%, transparent), transparent 34rem);
+  }
+
+  button,
+  a,
+  input,
+  textarea,
+  select {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background;
+  }
+
+  textarea {
+    field-sizing: content;
+  }
+
+  ::selection {
+    color: var(--foreground);
+    background: color-mix(in srgb, var(--primary) 22%, transparent);
+  }
+}
+
+@layer utilities {
+  .paper-card {
+    @apply rounded-xl border bg-card shadow-[0_1px_2px_rgb(34_42_38/0.025)];
+  }
+
+  .eyebrow {
+    @apply text-[0.68rem] font-medium tracking-[0.08em] text-muted-foreground;
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
