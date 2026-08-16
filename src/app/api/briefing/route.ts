@@ -84,6 +84,7 @@ export async function GET(request: Request): Promise<Response> {
       tasks,
       messages,
       events,
+      calendarConnected: !calendarResult.demo,
       settings,
       demo: context.demo || calendarResult.demo || generated.demo,
     });
