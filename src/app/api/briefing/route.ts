@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { log } from "@/lib/logger";
 import { anthropic } from "@/lib/server/anthropic";
-import { createCalendarClient } from "@/lib/server/calendar";
+import { listCalendarEventsWithFallback } from "@/lib/server/calendar";
 import { ApiError, errorResponse } from "@/lib/server/http";
 import { getRepositoryContext } from "@/lib/server/repository";
 
@@ -31,12 +31,12 @@ export async function GET(request: Request): Promise<Response> {
     const startAt = new Date(`${date}T00:00:00+09:00`).toISOString();
     const endAt = new Date(`${date}T23:59:59.999+09:00`).toISOString();
     const context = await getRepositoryContext();
-    const calendar = await createCalendarClient(context.providerAccessToken);
-    const [settings, tasks, events] = await Promise.all([
+    const [settings, tasks, calendarResult] = await Promise.all([
       context.repository.getSettings(),
       context.repository.listTasks(date),
-      calendar.listEvents(startAt, endAt),
+      listCalendarEventsWithFallback(startAt, endAt, context.providerAccessToken),
     ]);
+    const events = calendarResult.events;
     const openAfternoon = !events.some(
       (event) => Date.parse(event.endAt) > Date.parse(`${date}T12:00:00+09:00`),
     );
@@ -58,7 +58,7 @@ export async function GET(request: Request): Promise<Response> {
         reply_count: replyCount,
         task_count: tasks.length,
         model: generated.model,
-        demo: context.demo || calendar.demo || generated.demo,
+        demo: context.demo || calendarResult.demo || generated.demo,
       },
     });
     return Response.json({
@@ -69,7 +69,7 @@ export async function GET(request: Request): Promise<Response> {
       tasks,
       events,
       settings,
-      demo: context.demo || calendar.demo || generated.demo,
+      demo: context.demo || calendarResult.demo || generated.demo,
     });
   } catch (error) {
     return errorResponse(error, { operation: "briefing_generate", correlationId });

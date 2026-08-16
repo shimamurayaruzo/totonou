@@ -9,7 +9,12 @@ export type TriageCategory =
   | "ignore";
 export type TaskPriority = "urgent" | "today" | "anytime";
 export type TaskType = "sukima" | "jikkuri";
-export type TaskStatus = "pending" | "in_progress" | "completed";
+export type TaskStatus =
+  | "pending"
+  | "in_progress"
+  | "completed"
+  | "carried_over"
+  | "cancelled";
 
 export type MailAddress = {
   name?: string;
