@@ -302,10 +302,7 @@ export async function fetchAndTriageMail(
       continue;
     }
     let taskId: string | undefined;
-    if (
-      triage.category === "reply_required" ||
-      triage.category === "action_required"
-    ) {
+    if (triage.category === "reply_required") {
       const task = await input.repository.createTaskFromMessage(
         message.id,
         triage,

@@ -87,7 +87,8 @@ export function BriefingScreen() {
         (task) =>
           task.dueDate === state.asOfDate &&
           task.status !== "cancelled" &&
-          task.status !== "carried_over",
+          task.status !== "carried_over" &&
+          (task.source !== "email" || task.emailAction === "reply"),
       ),
     [state.asOfDate, state.tasks],
   )

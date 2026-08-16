@@ -404,12 +404,15 @@ async function refreshFromServer(): Promise<ActionResult> {
     setStoreState((state) => {
       const userId = data.userId ?? state.userId
       const messages = data.messages.map((message) => mapServerMessage(message, userId))
+      const tasks = data.tasks
+        .map((task) => mapServerTask(task, userId, data.date, messages))
+        .filter((task) => task.source !== "email" || task.emailAction === "reply")
       return {
         ...state,
         userId,
         asOfDate: data.date,
         messages,
-        tasks: data.tasks.map((task) => mapServerTask(task, userId, data.date, messages)),
+        tasks,
         calendarEvents: data.events.map((event) => mapServerEvent(event, userId)),
         settings: {
           ...state.settings,

@@ -3,6 +3,7 @@ import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 
+import { classifyMailDeterministically } from "@/lib/domain/mail-triage";
 import { serverEnv } from "@/lib/server/env";
 import { ExternalServiceError } from "@/lib/server/http";
 import type {
@@ -131,38 +132,8 @@ function extractJson(value: string): unknown {
   }
 }
 
-function normalizeTaskTitle(subject: string): string {
-  const trimmed = subject.replace(/^(re|fwd):\s*/i, "").trim();
-  return trimmed ? `${trimmed}を対応する`.slice(0, 120) : "メールを確認する";
-}
-
 function demoTriage(input: TriageInput): TriageResult {
-  const combined = `${input.subject}\n${input.bodyText}`.toLowerCase();
-  const reply = /(返信|返事|ご確認|いかが|でしょうか|回答|reply|respond|confirm)/i.test(
-    combined,
-  );
-  const action = /(対応|提出|更新|作成|送付|確認してください|依頼|締切|deadline|please)/i.test(
-    combined,
-  );
-  const urgent = /(至急|緊急|本日中|今日中|asap|urgent)/i.test(combined);
-  const longTask = /(作成|更新|調査|資料|実装|review|document)/i.test(combined);
-  const category = reply
-    ? "reply_required"
-    : action
-      ? "action_required"
-      : "information";
-  return triageOutputSchema.parse({
-    category,
-    priority: urgent ? "urgent" : category === "information" ? "anytime" : "today",
-    taskType: longTask ? "jikkuri" : "sukima",
-    reason:
-      category === "reply_required"
-        ? "相手から確認または回答を求められています。"
-        : category === "action_required"
-          ? "具体的な対応依頼が含まれています。"
-          : "確認のみで完了できる情報です。",
-    taskTitle: normalizeTaskTitle(input.subject),
-  });
+  return triageOutputSchema.parse(classifyMailDeterministically(input));
 }
 
 function demoSummary(bodyText: string): z.infer<typeof summaryOutputSchema> {
