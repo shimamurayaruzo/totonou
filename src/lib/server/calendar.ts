@@ -300,6 +300,29 @@ export async function createCalendarClient(
     : new DemoCalendarClient();
 }
 
+export async function listCalendarEventsWithFallback(
+  startAt: string,
+  endAt: string,
+  providerAccessToken?: string,
+): Promise<{ events: CalendarEventRecord[]; demo: boolean }> {
+  const calendar = await createCalendarClient(providerAccessToken);
+  try {
+    return {
+      events: await calendar.listEvents(startAt, endAt),
+      demo: calendar.demo,
+    };
+  } catch (error) {
+    if (calendar.demo || !(error instanceof ExternalServiceError)) {
+      throw error;
+    }
+    const fallback = new DemoCalendarClient();
+    return {
+      events: await fallback.listEvents(startAt, endAt),
+      demo: true,
+    };
+  }
+}
+
 export async function extractScheduleCandidates(input: {
   subject: string;
   bodyText: string;

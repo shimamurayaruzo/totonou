@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { log } from "@/lib/logger";
-import { createCalendarClient } from "@/lib/server/calendar";
+import { listCalendarEventsWithFallback } from "@/lib/server/calendar";
 import { ApiError, errorResponse } from "@/lib/server/http";
 import { getRepositoryContext } from "@/lib/server/repository";
 
@@ -33,14 +33,18 @@ export async function GET(request: Request): Promise<Response> {
       throw new ApiError(422, "INVALID_DATE_RANGE", "startAt and endAt must be a valid increasing range");
     }
     const context = await getRepositoryContext();
-    const calendar = await createCalendarClient(context.providerAccessToken);
-    const events = await calendar.listEvents(startAt, endAt);
+    const calendarResult = await listCalendarEventsWithFallback(
+      startAt,
+      endAt,
+      context.providerAccessToken,
+    );
+    const events = calendarResult.events;
     await log.info("calendar_events_list", "Calendar events listed", {
       correlationId,
       userId: context.userId,
       context: { range: { start_at: startAt, end_at: endAt }, result_count: events.length },
     });
-    return Response.json({ events, demo: context.demo || calendar.demo });
+    return Response.json({ events, demo: context.demo || calendarResult.demo });
   } catch (error) {
     return errorResponse(error, { operation: "calendar_events_list", correlationId, service: "google_calendar" });
   }
