@@ -43,7 +43,13 @@ export async function GET(request: Request): Promise<Response> {
       ...completedTasks.filter(
         (completed) => !openTasks.some((task) => task.id === completed.id),
       ),
-    ];
+    ].filter((task) => {
+      if (task.source !== "email") return true;
+      const sourceMessage = task.messageId
+        ? messages.find((message) => message.id === task.messageId)
+        : undefined;
+      return sourceMessage?.triageResult?.category === "reply_required";
+    });
     const events = calendarResult.events;
     const openAfternoon = !events.some(
       (event) => Date.parse(event.endAt) > Date.parse(`${date}T12:00:00+09:00`),
