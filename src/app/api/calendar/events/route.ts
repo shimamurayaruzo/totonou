@@ -44,7 +44,11 @@ export async function GET(request: Request): Promise<Response> {
       userId: context.userId,
       context: { range: { start_at: startAt, end_at: endAt }, result_count: events.length },
     });
-    return Response.json({ events, demo: context.demo || calendarResult.demo });
+    return Response.json({
+      events,
+      connected: !calendarResult.demo,
+      demo: context.demo || calendarResult.demo,
+    });
   } catch (error) {
     return errorResponse(error, { operation: "calendar_events_list", correlationId, service: "google_calendar" });
   }

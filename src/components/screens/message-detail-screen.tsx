@@ -131,34 +131,49 @@ export function MessageDetailScreen({ messageId }: { messageId: string }) {
         }),
       })
       if (!response.ok) throw new Error("reply send failed")
-      toast.success("承認した返信を送信しました。")
-    } catch {
-      toast.success("デモモードで送信済みにしました。実際のメールは送っていません。")
-    } finally {
       markMessageRead(message.messageId)
       setSent(true)
+      toast.success("承認した返信を送信しました。")
+    } catch {
+      toast.error("返信を送信できませんでした。送信済みにはしていません。")
+    } finally {
       setSending(false)
     }
   }
 
   const registerSchedule = async () => {
-    if (conflicts.length && !window.confirm("既存予定と重なっています。このまま登録しますか？")) return
-    if (!conflicts.length && !window.confirm(`${dateTime(selected.startAt)}で予定を登録しますか？`)) return
+    const localConflictApproved = conflicts.length > 0
+    const confirmation = localConflictApproved
+      ? "既存予定と重なっています。このまま登録しますか？"
+      : `${dateTime(selected.startAt)}で予定を登録しますか？`
+    if (!window.confirm(confirmation)) return
+
+    const request = (allowConflicts: boolean) => fetch("/api/calendar/schedule", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        messageId: message.messageId,
+        title: `打ち合わせ：${message.subject}`,
+        startAt: selected.startAt,
+        endAt: selected.endAt,
+        approvedByUser: true,
+        allowConflicts,
+      }),
+    })
+
     try {
-      await fetch("/api/calendar/schedule", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          messageId: message.messageId,
-          title: `打ち合わせ：${message.subject}`,
-          startAt: selected.startAt,
-          endAt: selected.endAt,
-          approvedByUser: true,
-        }),
-      })
-    } catch {
-      return
-    } finally {
+      let response = await request(localConflictApproved)
+      if (response.status === 409) {
+        const approved = window.confirm(
+          "Google Calendar上の予定と重なっています。それでも登録しますか？",
+        )
+        if (!approved) return
+        response = await request(true)
+      }
+      if (!response.ok) {
+        toast.error("Google Calendarへ予定を登録できませんでした。")
+        return
+      }
       scheduleEvent({
         title: `打ち合わせ：${message.subject}`,
         description: `メール ${message.messageId} から登録`,
@@ -166,7 +181,9 @@ export function MessageDetailScreen({ messageId }: { messageId: string }) {
         endAt: selected.endAt,
       })
       setScheduled(true)
-      toast.success("予定をカレンダーへ登録しました。")
+      toast.success("予定をGoogle Calendarへ登録しました。")
+    } catch {
+      toast.error("Google Calendarへの接続に失敗しました。")
     }
   }
 
