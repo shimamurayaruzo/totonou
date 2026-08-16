@@ -31,11 +31,19 @@ export async function GET(request: Request): Promise<Response> {
     const startAt = new Date(`${date}T00:00:00+09:00`).toISOString();
     const endAt = new Date(`${date}T23:59:59.999+09:00`).toISOString();
     const context = await getRepositoryContext();
-    const [settings, tasks, calendarResult] = await Promise.all([
+    const [settings, openTasks, completedTasks, messages, calendarResult] = await Promise.all([
       context.repository.getSettings(),
       context.repository.listTasks(date),
+      context.repository.listCompletedTasks(date),
+      context.repository.listMessages(100),
       listCalendarEventsWithFallback(startAt, endAt, context.providerAccessToken),
     ]);
+    const tasks = [
+      ...openTasks,
+      ...completedTasks.filter(
+        (completed) => !openTasks.some((task) => task.id === completed.id),
+      ),
+    ];
     const events = calendarResult.events;
     const openAfternoon = !events.some(
       (event) => Date.parse(event.endAt) > Date.parse(`${date}T12:00:00+09:00`),
@@ -66,7 +74,9 @@ export async function GET(request: Request): Promise<Response> {
       summary: generated.data.summary,
       cheer: generated.data.cheer,
       goal: settings.monthlyGoals,
+      userId: context.userId,
       tasks,
+      messages,
       events,
       settings,
       demo: context.demo || calendarResult.demo || generated.demo,

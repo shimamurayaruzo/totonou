@@ -16,7 +16,9 @@ import type {
   AppState,
   CalendarEvent,
   DailyReview,
+  GmailCategory,
   JsonObject,
+  Message,
   PraisePostStatus,
   Settings,
   Task,
@@ -52,11 +54,95 @@ type SettingsPatch = Partial<
   Pick<Settings, "dreams" | "monthlyGoals" | "fetchRange" | "coachPersona" | "markAsRead" | "domainAllowlist" | "domainBlocklist">
 >
 
+interface ServerTriageResult {
+  readonly category: "reply_required" | "action_required" | "information" | "ignore"
+  readonly priority: TaskPriority
+  readonly taskType: TaskType
+  readonly reason: string
+  readonly taskTitle: string
+}
+
+interface ServerMessage {
+  readonly id: string
+  readonly externalId: string
+  readonly threadId?: string
+  readonly account: "gmail" | "goodsystem"
+  readonly senderName?: string
+  readonly senderAddress: string
+  readonly recipientAddresses: string[]
+  readonly subject: string
+  readonly bodyText: string
+  readonly bodyHtml?: string
+  readonly snippet: string
+  readonly receivedAt: string
+  readonly category?: string
+  readonly triageResult?: ServerTriageResult
+  readonly isRead: boolean
+  readonly providerUrl?: string
+}
+
+interface ServerTask {
+  readonly id: string
+  readonly userId?: string
+  readonly source: "email" | "manual" | "calendar"
+  readonly messageId?: string
+  readonly title: string
+  readonly description?: string
+  readonly priority: TaskPriority
+  readonly taskType: TaskType
+  readonly status: Task["status"]
+  readonly estimatedMinutes?: number
+  readonly startedAt?: string
+  readonly completedAt?: string
+  readonly dueDate?: string
+  readonly carriedOverFrom?: string
+  readonly elapsedMinutes?: number
+}
+
+interface ServerCalendarEvent {
+  readonly id: string
+  readonly providerEventId?: string
+  readonly title: string
+  readonly description?: string
+  readonly startAt: string
+  readonly endAt: string
+  readonly status: string
+  readonly location?: string
+  readonly htmlLink?: string
+}
+
+interface ServerSettings {
+  readonly dreams: string
+  readonly monthlyGoals: string
+  readonly fetchRange: Settings["fetchRange"]
+  readonly coachPersona: Settings["coachPersona"]
+  readonly markAsRead: boolean
+}
+
+interface BriefingResponse {
+  readonly userId?: string
+  readonly date: string
+  readonly tasks: ServerTask[]
+  readonly messages: ServerMessage[]
+  readonly events: ServerCalendarEvent[]
+  readonly settings: ServerSettings
+}
+
+interface MailSyncResponse {
+  readonly fetchedCount: number
+  readonly classifiedCount: number
+  readonly taskCount: number
+  readonly gmailConnected: boolean
+  readonly persistenceConnected: boolean
+  readonly aiConnected: boolean
+}
+
 interface AppContextValue {
   readonly state: AppState
   readonly addTask: (input: AddTaskInput) => ActionResult
   readonly startTask: (taskId: string) => ActionResult
   readonly completeTask: (taskId: string) => ActionResult
+  readonly refreshFromServer: () => Promise<ActionResult>
   readonly syncMail: () => Promise<ActionResult>
   readonly saveSettings: (patch: SettingsPatch) => void
   readonly saveReview: (patch: ReviewPatch) => DailyReview
@@ -82,6 +168,118 @@ function addDays(date: string, days: number) {
   const value = new Date(`${date}T12:00:00.000Z`)
   value.setUTCDate(value.getUTCDate() + days)
   return value.toISOString().slice(0, 10)
+}
+
+function splitSetting(value: string) {
+  return value.split("\n").map((item) => item.trim()).filter(Boolean)
+}
+
+function gmailCategory(value?: string): GmailCategory {
+  const categories: GmailCategory[] = [
+    "forums",
+    "promotions",
+    "social",
+    "personal",
+    "updates",
+    "primary",
+    "unknown",
+  ]
+  return categories.includes(value as GmailCategory) ? (value as GmailCategory) : "unknown"
+}
+
+function mapServerMessage(message: ServerMessage, userId: string): Message {
+  const triageCategory = message.triageResult?.category
+  const category = triageCategory === "reply_required"
+    ? "needs_reply"
+    : triageCategory === "action_required"
+      ? "needs_action"
+      : triageCategory ?? null
+  return {
+    messageId: message.id,
+    userId,
+    threadId: message.threadId ?? "",
+    channel: "gmail",
+    account: message.account,
+    from: { name: message.senderName ?? "", address: message.senderAddress },
+    to: message.recipientAddresses.map((address) => ({ name: "", address })),
+    subject: message.subject,
+    bodyText: message.bodyText,
+    bodyHtml: message.bodyHtml ?? null,
+    receivedAt: message.receivedAt,
+    category: gmailCategory(message.category),
+    labels: [],
+    isUnread: !message.isRead,
+    sourceUrl: message.providerUrl ?? "#",
+    triageResult: message.triageResult && category
+      ? {
+          category,
+          priority: message.triageResult.priority,
+          taskType: message.triageResult.taskType,
+          summary: message.snippet,
+          reason: message.triageResult.reason,
+          reasonCode: category === "needs_reply"
+            ? "direct_question"
+            : category === "needs_action"
+              ? "explicit_request"
+              : "informational_only",
+          confidence: 1,
+          classifiedAt: message.receivedAt,
+        }
+      : null,
+  }
+}
+
+function mapServerTask(
+  task: ServerTask,
+  userId: string,
+  date: string,
+  messages: readonly Message[],
+): Task {
+  const sourceMessage = task.messageId
+    ? messages.find((message) => message.messageId === task.messageId)
+    : undefined
+  return {
+    id: task.id,
+    userId: task.userId ?? userId,
+    source: task.source,
+    messageId: task.messageId ?? null,
+    calendarEventId: null,
+    emailAction: task.source === "email"
+      ? sourceMessage?.triageResult?.category === "needs_reply" ? "reply" : "action"
+      : null,
+    title: task.title,
+    notes: task.description ?? "",
+    priority: task.priority,
+    taskType: task.taskType,
+    status: task.status,
+    estimatedMinutes: task.estimatedMinutes ?? 15,
+    elapsedMinutes: task.elapsedMinutes ?? null,
+    startedAt: task.startedAt ?? null,
+    completedAt: task.completedAt ?? null,
+    dueDate: task.dueDate ?? date,
+    carriedOverFrom: task.carriedOverFrom ?? null,
+    createdAt: task.startedAt ?? task.completedAt ?? new Date(`${date}T00:00:00+09:00`).toISOString(),
+    updatedAt: task.completedAt ?? task.startedAt ?? new Date(`${date}T00:00:00+09:00`).toISOString(),
+  }
+}
+
+function mapServerEvent(event: ServerCalendarEvent, userId: string): CalendarEvent {
+  return {
+    id: event.id,
+    externalId: event.providerEventId ?? event.id,
+    userId,
+    account: "gmail",
+    title: event.title,
+    description: event.description ?? "",
+    location: event.location ?? "",
+    startAt: event.startAt,
+    endAt: event.endAt,
+    allDay: false,
+    status: event.status === "cancelled" ? "cancelled" : event.status === "tentative" ? "tentative" : "confirmed",
+    sourceUrl: event.htmlLink ?? "#",
+    createdAt: event.startAt,
+    updatedAt: event.endAt,
+  }
 }
 
 function activityLog(
@@ -198,8 +396,42 @@ function completeTask(taskId: string): ActionResult {
   }
 }
 
+async function refreshFromServer(): Promise<ActionResult> {
+  try {
+    const response = await fetch("/api/briefing", { cache: "no-store" })
+    if (!response.ok) return { ok: false, message: "サーバーデータを取得できませんでした。" }
+    const data = await response.json() as BriefingResponse
+    setStoreState((state) => {
+      const userId = data.userId ?? state.userId
+      const messages = data.messages.map((message) => mapServerMessage(message, userId))
+      return {
+        ...state,
+        userId,
+        asOfDate: data.date,
+        messages,
+        tasks: data.tasks.map((task) => mapServerTask(task, userId, data.date, messages)),
+        calendarEvents: data.events.map((event) => mapServerEvent(event, userId)),
+        settings: {
+          ...state.settings,
+          userId,
+          dreams: splitSetting(data.settings.dreams),
+          monthlyGoals: splitSetting(data.settings.monthlyGoals),
+          fetchRange: data.settings.fetchRange,
+          coachPersona: data.settings.coachPersona,
+          markAsRead: data.settings.markAsRead,
+          updatedAt: now(),
+        },
+      }
+    })
+    return { ok: true, message: "サーバーデータを更新しました。" }
+  } catch {
+    return { ok: false, message: "サーバーデータを取得できませんでした。" }
+  }
+}
+
 async function syncMail(): Promise<ActionResult> {
   const correlationId = `chk_${crypto.randomUUID()}`
+  const current = getStoreSnapshot()
   setStoreState((state) =>
     appendLog(state, "fetch_mail_batch_start", "メール確認を開始", {
       fetch_range: state.settings.fetchRange,
@@ -207,25 +439,36 @@ async function syncMail(): Promise<ActionResult> {
     }, correlationId),
   )
   try {
-    const response = await fetch("/api/mail/fetch", { method: "POST" })
-    if (!response.ok) throw new Error("mail sync failed")
+    const response = await fetch("/api/mail/fetch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fetchRange: current.settings.fetchRange }),
+    })
+    const result = await response.json() as MailSyncResponse & {
+      error?: { message?: string }
+    }
+    if (!response.ok) {
+      return { ok: false, message: result.error?.message ?? "Gmailの取得に失敗しました。" }
+    }
+    if (!result.gmailConnected) {
+      return { ok: false, message: "Gmail認証が未設定です。" }
+    }
+    const refreshed = await refreshFromServer()
+    if (!refreshed.ok) return refreshed
     setStoreState((state) =>
-      appendLog(state, "fetch_mail_batch_complete", "メール確認が完了", {
-        fetched_count: state.messages.length,
-        classified_count: state.messages.filter((message) => message.triageResult).length,
-        task_candidate_count: state.tasks.filter((task) => task.source === "email").length,
+      appendLog(state, "fetch_mail_batch_complete", "実Gmailの確認が完了", {
+        fetched_count: result.fetchedCount,
+        classified_count: result.classifiedCount,
+        task_candidate_count: result.taskCount,
       }, correlationId),
     )
-    return { ok: true, message: "メールを確認し、今日のタスクを更新しました。" }
+    const classifier = result.aiConnected ? "AI分類" : "ルールベース分類"
+    return {
+      ok: true,
+      message: `実Gmailから${result.fetchedCount}件を取得し、${classifier}で${result.taskCount}件をタスク化しました。`,
+    }
   } catch {
-    setStoreState((state) =>
-      appendLog(state, "fetch_mail_batch_complete", "デモデータでメール確認を完了", {
-        fetched_count: state.messages.length,
-        classified_count: state.messages.filter((message) => message.triageResult).length,
-        task_candidate_count: state.tasks.filter((task) => task.source === "email").length,
-      }, correlationId),
-    )
-    return { ok: true, message: "デモデータでメール確認を完了しました。" }
+    return { ok: false, message: "Gmailの取得に失敗しました。サーバーログを確認してください。" }
   }
 }
 
@@ -395,6 +638,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       addTask,
       startTask,
       completeTask,
+      refreshFromServer,
       syncMail,
       saveSettings,
       saveReview,

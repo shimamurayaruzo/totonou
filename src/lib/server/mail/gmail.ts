@@ -319,9 +319,15 @@ export class GmailRestChannel implements MailChannel {
         [...forumIds, ...otherIds].map((message) => [message.id, message]),
       ).values(),
     ].slice(0, limit);
-    const messages = await Promise.all(
-      uniqueIds.map((message) => this.getMessage(message.id, "metadata")),
-    );
+    const messages: Array<z.infer<typeof gmailMessageSchema>> = [];
+    for (let index = 0; index < uniqueIds.length; index += 5) {
+      const batch = uniqueIds.slice(index, index + 5);
+      messages.push(
+        ...(await Promise.all(
+          batch.map((message) => this.getMessage(message.id, "metadata")),
+        )),
+      );
+    }
     return messages
       .map((message) => this.toSummary(message))
       .filter((message) => {

@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { FormEvent, useMemo, useState } from "react"
+import { FormEvent, useEffect, useMemo, useState } from "react"
 import {
   ArrowRight,
   Brain,
@@ -64,6 +64,7 @@ export function BriefingScreen() {
     addTask,
     startTask,
     completeTask,
+    refreshFromServer,
     syncMail,
     saveReview,
     notifyCoach,
@@ -75,6 +76,10 @@ export function BriefingScreen() {
   const [syncing, setSyncing] = useState(false)
   const existingReview = state.dailyReviews.find((review) => review.date === state.asOfDate)
   const [goal, setGoal] = useState(existingReview?.goal ?? state.settings.monthlyGoals[0] ?? "")
+
+  useEffect(() => {
+    void refreshFromServer()
+  }, [refreshFromServer])
 
   const dayTasks = useMemo(
     () =>

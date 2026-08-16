@@ -42,6 +42,9 @@ export type FetchMailResult = {
     taskId?: string;
   }>;
   demo: boolean;
+  gmailConnected: boolean;
+  persistenceConnected: boolean;
+  aiConnected: boolean;
 };
 
 function domainOf(address: string): string {
@@ -354,6 +357,9 @@ export async function fetchAndTriageMail(
     messages: resultMessages,
     demo:
       input.repository.demo || channelResult.demo || anthropic.demo,
+    gmailConnected: !channelResult.demo,
+    persistenceConnected: !input.repository.demo,
+    aiConnected: !anthropic.demo,
   };
 
   await log.info("fetch_mail_batch_complete", "Mail check completed", {

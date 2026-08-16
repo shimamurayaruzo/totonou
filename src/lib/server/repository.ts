@@ -30,6 +30,7 @@ export interface TotonouRepository {
   listTasks(date: string): Promise<TaskRecord[]>;
   listCompletedTasks(date: string): Promise<TaskRecord[]>;
   listEvents(startAt: string, endAt: string): Promise<CalendarEventRecord[]>;
+  listMessages(limit: number): Promise<StoredMessage[]>;
   getMessage(id: string): Promise<StoredMessage | null>;
   saveMessages(messages: MessageInput[]): Promise<StoredMessage[]>;
   createTaskFromMessage(
@@ -236,6 +237,13 @@ export class DemoTotonouRepository implements TotonouRepository {
     return [...generated, ...demoEvents]
       .filter((event) => event.startAt < endAt && event.endAt > startAt)
       .map((event) => ({ ...event }));
+  }
+
+  async listMessages(limit: number): Promise<StoredMessage[]> {
+    return [...demoMessages]
+      .sort((left, right) => Date.parse(right.receivedAt) - Date.parse(left.receivedAt))
+      .slice(0, limit)
+      .map((message) => ({ ...message }));
   }
 
   async getMessage(id: string): Promise<StoredMessage | null> {
@@ -662,6 +670,16 @@ export class SupabaseTotonouRepository implements TotonouRepository {
       .gt("end_at", startAt)
       .order("start_at");
     return assertResult(data, error).map(mapEvent);
+  }
+
+  async listMessages(limit: number): Promise<StoredMessage[]> {
+    const { data, error } = await this.client
+      .from("messages")
+      .select("*")
+      .eq("user_id", this.userId)
+      .order("received_at", { ascending: false })
+      .limit(Math.min(100, Math.max(1, limit)));
+    return assertResult(data, error).map(mapMessage);
   }
 
   async getMessage(id: string): Promise<StoredMessage | null> {
